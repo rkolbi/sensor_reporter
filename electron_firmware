@@ -219,20 +219,6 @@ void loop()
     published_norm1_or_alert2 = 0;
   }
 
-  if (sleep == 1 && published_norm1_or_alert2 == 2 && alert_smpl_intvl > 18 && t2 >= (Time.now() + sleep_wait))
-  {
-    if (enable_wop)
-    {
-      System.sleep({RI_UC, BTN}, {RISING, FALLING}, (((alert_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 2), SLEEP_NETWORK_STANDBY);
-      Cellular.command("AT+URING=0\r\n");
-      Cellular.command("AT+URING=1\r\n");
-    }
-    else
-    {
-      System.sleep(BTN, FALLING, ((alert_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait), SLEEP_NETWORK_STANDBY);
-    }
-    published_norm1_or_alert2 = 0;
-  }
   ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ END BEDTIME CHECK \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
 
   ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ BEGIN ALERT STATE PUBLISH FLUSH \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
