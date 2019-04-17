@@ -1,0 +1,11 @@
+{
+"event": "a",
+"url": "http://BLAHBLAHBLAH/RECEIVER.php",
+"requestType": "GET",
+"noDefaults": false,
+"rejectUnauthorized": false,
+"query": {
+	"id": "{{SPARK_EVENT_VALUE}}",
+	"location": "{{SPARK_CORE_ID}}"
+	}
+}
