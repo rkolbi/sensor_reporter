@@ -108,7 +108,7 @@ void loop()
   {
     if (a != 0)
       Particle.publish("a", "9 - DEVICE SHUTTING DOWN FOR 8 HOURS, BATTERY SoC < 20!", 60, PRIVATE, NO_ACK); // LET SERVER KNOW WE ARE GOING TO SLEEP
-    for (uint32_t ms = millis(); millis() - ms < 10000; Particle.process())
+    for (uint32_t ms = millis(); millis() - ms < 10000; Particle.process()) //EXTRA TIME BEFORE DEEP SLEEP
       ;
     System.sleep(SLEEP_MODE_DEEP, 14400); // SLEEP 8 HOURS IF SoC < 20
   }
@@ -116,6 +116,9 @@ void loop()
   if (a == 1)
   {
     Particle.publish("a", "9 - DEVICE ONLINE!", 60, PRIVATE, NO_ACK); // LET SERVER KNOW ONLINE!
+    digitalWrite(led1, HIGH);
+    for (uint32_t ms = millis(); millis() - ms < 2000; Particle.process());
+    digitalWrite(led1, LOW);
     a = 2;
   }
 
@@ -258,7 +261,7 @@ void loop()
       {
         Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
         digitalWrite(led1, HIGH);
-        delay(200);
+        for (uint32_t ms = millis(); millis() - ms < 2000; Particle.process());
         digitalWrite(led1, LOW);
       }
     }
@@ -302,7 +305,7 @@ void loop()
       {
         Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
         digitalWrite(led1, HIGH);
-        delay(200);
+        for (uint32_t ms = millis(); millis() - ms < 2000; Particle.process());
         digitalWrite(led1, LOW);
       }
     }
