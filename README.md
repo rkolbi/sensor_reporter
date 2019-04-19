@@ -10,3 +10,4 @@ In this repository you will find the Particle Electron sketch (electron_firmware
 
 ‘graph.php’ is the frontend for displaying the data contained within the csv files. It uses dygraph.min.js, dygraph.js, and dygraph.css which can be downloaded at dygraphs.com to form the charts and is very easy to modify.
 
+![sensor_reporter](https://repository-images.githubusercontent.com/181787576/20111280-627b-11e9-9d95-d68b32473391)
