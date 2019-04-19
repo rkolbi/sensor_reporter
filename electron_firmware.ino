@@ -122,6 +122,8 @@ void loop()
     a = 2;
   }
 
+  
+  
   ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ START SENSOR VALUE GATHERING \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
 
   // SENSOR VALUES GO INTO THE sensor_value[X][0] ARRAY WHERE 'X' IS THE SENSOR NUMBER
@@ -138,6 +140,8 @@ void loop()
 
   ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ END SENSOR VALUE GATHERING \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
 
+  
+  
   ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/GATHER, EVENT CHECK, AND PUBLISH \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
 
   //-- BEGIN SENSOR EVENT CHECK --
@@ -177,11 +181,12 @@ void loop()
     }
   }
   if (smpls_performed > alert_cycl_mark)
-    current_smpl_intvl = norm_smpl_intvl;
-  // CHECK IF WE ARE IN AN ALERT REPORT CONDITION AND SEE IF WE SHOULD COME OUT OF IT
-  ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ END SENSOR EVENT CHECK \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
+    current_smpl_intvl = norm_smpl_intvl; // CHECK ALERT REPORT CONDITION
+  //-- END SENSOR EVENT CHECK --
 
-  ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ START SAMPLING TIME CHECK \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
+  
+  
+  //-- START SAMPLING TIME CHECK --
   if (Time.now() > t2)
   {
     for (w = 0; w < no_of_sensors; w++)
@@ -205,9 +210,11 @@ void loop()
     if (alert_cycl_mark == (smpls_performed + 1))
       alrt_state_chng = 3;
   }
-  ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ END SAMPLING TIME CHECK \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
+  //-- END SAMPLING TIME CHECK --
 
-  ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ START BEDTIME CHECK \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
+  
+  
+  //-- START BEDTIME CHECK --
   if (sleep == 1 && published_norm1_or_alert2 == 1 && norm_smpl_intvl > 18 && t2 >= (Time.now() + sleep_wait))
   {
     if (enable_wop)
@@ -222,10 +229,11 @@ void loop()
     }
     published_norm1_or_alert2 = 0;
   }
+  //-- END BEDTIME CHECK --
 
-  ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ END BEDTIME CHECK \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
-
-  ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ BEGIN ALERT STATE PUBLISH FLUSH \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
+  
+  
+  //-- BEGIN ALERT STATE PUBLISH FLUSH --
   if ((alrt_state_chng == 3) || (alrt_state_chng == 1 && alert_cycl_mark > smpls_performed))
   {
     fullpub_temp1[0] = 0;
@@ -270,9 +278,11 @@ void loop()
     if (alrt_state_chng == 3)
       alrt_state_chng = 0;
   }
-  ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ END ALERT STATE PUBLISH FLUSH \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
+  //-- END ALERT STATE PUBLISH FLUSH --
 
-  ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ START SAMPLES TAKEN CHECK AND PUBLISH \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
+  
+  
+  //-- START SAMPLES TAKEN CHECK AND PUBLISH --
   if (x == rnds_to_publish)
   {
     fullpub_temp1[0] = 0;
@@ -312,7 +322,8 @@ void loop()
     fullpublish[0] = 0; // CLEAR THE FULLPUBLISH STRING
     pubs_performs++;
   }
-  ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ END SAMPLES TAKEN CHECK AND PUBLISH \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
+  //-- END SAMPLES TAKEN CHECK AND PUBLISH --
 
+  
   ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ END GATHER, EVENT CHECK, AND PUBLISH \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
 }
