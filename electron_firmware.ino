@@ -249,7 +249,7 @@ void loop()
     {
       for (y = 0; y < no_of_sensors; y++)
       {
-        snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.0f", sensorlen[y], storage[x][y]);
+        snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.0f", sensorlen[y], storage[xa][y]);
         strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1); // better to check the boundaries
       }
     } // BUILT FULLPUBLISH STRING
