@@ -31,7 +31,6 @@ int do_publish = 1;             // PERFORM PARTICLE.PUBLISH EVENTS
 
 // SENSOR REPORT CONFIG
 const int no_of_sensors = 8;                             // THE NUMBER OF SENSOR READINGS TO COLLECT PER SAMPLE
-int sensor_smpl_delay = 300;                             // SAMPLE INTERVAL DELAY BETWEEN READINGS, Milliseconds
 int sensorlen[no_of_sensors] = {4, 4, 4, 4, 3, 3, 3, 3}; // THE LENGTH OF EACH SENSOR'S VALUE
 
 // ALAERT SETTING //
@@ -43,7 +42,7 @@ int sensor_alert_thrshld[no_of_sensors] = {999, 999, 999, 999, 2, 90, 15, 15}; /
 int enable_wop = 0;             // ENABLE WAKE-ON-PING
 int sleep = 1;                  // SLEEP MODE ON = 1 / SLEEP MODE OFF = 0
 int sleep_wait = 1;             // TIME TO WAIT AFTER PUBLISH TO FALL ASLEEP
-int secs_less_intrvl_sleep = 4; // SECONDS TO DELAY FROM SAMPLE INTERVAL FOR SLEEP TIME
+int secs_less_intrvl_sleep = 0; // ADDITIONAL SECONDS TO DELAY FROM SAMPLE INTERVAL FOR SLEEP TIME, 5 SECONDS ARE ALREADY SUBTRACTED
 int app_watchdog = 360000;      // APPLICATION WATCHDOG TIME TRIGGER IS MS - SLEEP TIME SHOULD NOT BE COUNTED,
 //                                 BUT THE ABOVE THREE VARIABLES SHOULD BE BUT NOT LESS THEN 30000
 
@@ -93,9 +92,12 @@ void setup()
   //pmic.setInputVoltageLimit(5080);     	//SET THE LOWEST INPUT VOLTAGE TO 5.08 VOLTS, FOR 6V SOLAR PANEL
 
   Wire.begin(); // Initialise I2C communication as Master
-  delay(1000);
+  for (uint32_t ms = millis(); millis() - ms < 500;)
+    ;
+
   bno.begin(); // Initialize IMU
-  delay(1000);
+  for (uint32_t ms = millis(); millis() - ms < 500;)
+    ;
 }
 
 ApplicationWatchdog wd(app_watchdog, System.reset);
@@ -135,16 +137,19 @@ void loop()
     bno.setExtCrystalUse(true);
     ads.getAddr_ADS1115(ADS1115_DEFAULT_ADDRESS); // (ADDR = GND)
     ads.setGain(GAIN_TWOTHIRDS);                  // 2/3x gain +/- 6.144V  1 bit = 0.1875mV
-    ads.setMode(MODE_SINGLE);                     // ads.setMode(MODE_CONTIN) = Continuous conversion mode - ads.setMode(MODE_SINGLE); Power-down single-shot mode (default)
+    ads.setMode(MODE_CONTIN);                     // ads.setMode(MODE_CONTIN) = Continuous conversion mode - ads.setMode(MODE_SINGLE); Power-down single-shot mode (default)
     ads.setRate(RATE_128);                        // 128SPS (default) 8,16,32,64,128,250,475,860
     ads.setOSMode(OSMODE_SINGLE);                 // Set to start a single-conversion
     ads.begin();
     mcp.setResolution(MCP9808_SLOWEST);
+    Wire.beginTransmission(0x28); //Start I2C transmission - BNO055 I2C address is 0x28(40)
+    Wire.write(0x3E);             // Select PWR_MODE register
+    Wire.write(0x00);             // Power modes selection: 0x00 = Normal, 0x01 = Low Power, 0x02 = Suspend Mode
+    Wire.endTransmission();       // Stop I2C transmission
     resetct = 1;
   }
 
   ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ START SENSOR VALUE GATHERING \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
-  delay(sensor_smpl_delay);
 
   // SENSOR VALUES GO INTO THE sensor_value[X][0] ARRAY WHERE 'X' IS THE SENSOR NUMBER
   // sensor_value[1][0] = SENSOR 1, SENSOR VALUE
@@ -251,58 +256,62 @@ void loop()
   //-- END SAMPLING TIME CHECK --
 
   //-- START BEDTIME CHECK FOR NORMAL MODE --
-  if (sleep == 1 && published_norm1_or_alert2 == 1 && norm_smpl_intvl > 18 && t2 >= (Time.now() + sleep_wait)) 
+  if (sleep == 1 && published_norm1_or_alert2 == 1 && norm_smpl_intvl > 23 && t2 >= (Time.now() + sleep_wait))
   {
     //PUT IMU TO SUSPEND
     Wire.beginTransmission(0x28); //Start I2C transmission - BNO055 I2C address is 0x28(40)
     Wire.write(0x3E);             // Select PWR_MODE register
     Wire.write(0x02);             // Power modes selection: 0x00 = Normal, 0x01 = Low Power, 0x02 = Suspend Mode
     Wire.endTransmission();       // Stop I2C transmission
-    delay(500);
+    for (uint32_t ms = millis(); millis() - ms < 250;)
+      ;
     if (enable_wop)
     {
-      System.sleep({RI_UC, BTN}, {RISING, FALLING}, (((norm_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 2), SLEEP_NETWORK_STANDBY);
+      System.sleep({RI_UC, BTN}, {RISING, FALLING}, (((norm_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 5), SLEEP_NETWORK_STANDBY);
       Cellular.command("AT+URING=0\r\n");
       Cellular.command("AT+URING=1\r\n");
     }
     else
     {
-      System.sleep(BTN, FALLING, ((norm_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait), SLEEP_NETWORK_STANDBY);
+      System.sleep(BTN, FALLING, (((norm_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 5), SLEEP_NETWORK_STANDBY);
     }
     //WAKE UP IMU
     Wire.beginTransmission(0x28); //Start I2C transmission - BNO055 I2C address is 0x28(40)
     Wire.write(0x3E);             // Select PWR_MODE register
     Wire.write(0x00);             // Power modes selection: 0x00 = Normal, 0x01 = Low Power, 0x02 = Suspend Mode
     Wire.endTransmission();       // Stop I2C transmission
-    delay(500);
+    for (uint32_t ms = millis(); millis() - ms < 250;)
+      ;
     published_norm1_or_alert2 = 0;
   }
-  
+
   //-- START BEDTIME CHECK FOR ALERT MODE --
-  if (sleep == 1 && published_norm1_or_alert2 == 2 && alert_smpl_intvl > 18 && t2 >= (Time.now() + sleep_wait)) 
+  if (sleep == 1 && published_norm1_or_alert2 == 2 && alert_smpl_intvl > 23 && t2 >= (Time.now() + sleep_wait))
   {
     //PUT IMU TO SUSPEND
     Wire.beginTransmission(0x28); //Start I2C transmission - BNO055 I2C address is 0x28(40)
     Wire.write(0x3E);             // Select PWR_MODE register
     Wire.write(0x02);             // Power modes selection: 0x00 = Normal, 0x01 = Low Power, 0x02 = Suspend Mode
     Wire.endTransmission();       // Stop I2C transmission
-    delay(500);
+    for (uint32_t ms = millis(); millis() - ms < 250;)
+      ;
     if (enable_wop)
     {
-      System.sleep({RI_UC, BTN}, {RISING, FALLING}, (((alert_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 2), SLEEP_NETWORK_STANDBY);
+      System.sleep({RI_UC, BTN}, {RISING, FALLING}, (((alert_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 5), SLEEP_NETWORK_STANDBY);
       Cellular.command("AT+URING=0\r\n");
       Cellular.command("AT+URING=1\r\n");
     }
     else
     {
-      System.sleep(BTN, FALLING, ((alert_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait), SLEEP_NETWORK_STANDBY);
+      System.sleep(BTN, FALLING, (((alert_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 5), SLEEP_NETWORK_STANDBY);
     }
     //WAKE UP IMU
     Wire.beginTransmission(0x28); //Start I2C transmission - BNO055 I2C address is 0x28(40)
     Wire.write(0x3E);             // Select PWR_MODE register
     Wire.write(0x00);             // Power modes selection: 0x00 = Normal, 0x01 = Low Power, 0x02 = Suspend Mode
     Wire.endTransmission();       // Stop I2C transmission
-    delay(500);
+    for (uint32_t ms = millis(); millis() - ms < 250;)
+      ;
     published_norm1_or_alert2 = 0;
   }
   //-- END BEDTIME CHECK --
@@ -325,11 +334,12 @@ void loop()
       {
         if (y < 4)
         { //THIS IS TO LET THE FIRST FOUR READINGS HAVE TWO DECIMAL PLACES
-          snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.2f", sensorlen[y], storage[x][y]);
+          //changed x to xa below in both following snprintf calls!!!!!!!!!!
+          snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.2f", sensorlen[y], storage[xa][y]);
         }
         else
         {
-          snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.0f", sensorlen[y], storage[x][y]);
+          snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.0f", sensorlen[y], storage[xa][y]);
         }
         strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1); // better to check the boundaries
       }
@@ -350,7 +360,7 @@ void loop()
       {
         Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
         digitalWrite(led1, HIGH);
-        for (uint32_t ms = millis(); millis() - ms < 2000; Particle.process())
+        for (uint32_t ms = millis(); millis() - ms < 1000; Particle.process())
           ;
         digitalWrite(led1, LOW);
       }
@@ -402,7 +412,7 @@ void loop()
       {
         Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
         digitalWrite(led1, HIGH);
-        for (uint32_t ms = millis(); millis() - ms < 2000; Particle.process())
+        for (uint32_t ms = millis(); millis() - ms < 1000; Particle.process())
           ;
         digitalWrite(led1, LOW);
       }
@@ -413,4 +423,6 @@ void loop()
   //-- END SAMPLES TAKEN CHECK AND PUBLISH --
 
   ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ END GATHER, EVENT CHECK, AND PUBLISH \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
+  for (uint32_t ms = millis(); millis() - ms < 100;)
+    ;
 }
