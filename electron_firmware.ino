@@ -261,7 +261,14 @@ void loop()
     {
       FuelGauge fuel; // GET BATTERY INFO
       fullpub_temp1[0] = 0;
-      snprintf(fullpub_temp1, sizeof(fullpub_temp1), "E%d%d%d", current_smpl_intvl, ((int)(fuel.getVCell() * 100)), ((int)(fuel.getSoC() * 100))); // ADDING SAMPLE RATE, BATTERY INFO
+      if (alrt_state_chng == 1) //FIX ISSUE WHERE NORM COLLECTED BUFFER REPORTING INTERVAL IS PUBLISHED AS ALERT REPORT INTERVAL
+      {
+        snprintf(fullpub_temp1, sizeof(fullpub_temp1), "E%d%d%d", norm_smpl_intvl, ((int)(fuel.getVCell() * 100)), ((int)(fuel.getSoC() * 100))); // ADDING SAMPLE RATE, BATTERY INFO
+      }
+      else
+      {
+        snprintf(fullpub_temp1, sizeof(fullpub_temp1), "E%d%d%d", current_smpl_intvl, ((int)(fuel.getVCell() * 100)), ((int)(fuel.getSoC() * 100))); // ADDING SAMPLE RATE, BATTERY INFO
+      }
       strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
       Serial.println(fullpublish);
       Serial.printf("ASP: The size of published string is %d bytes. \n", strlen(fullpublish));
