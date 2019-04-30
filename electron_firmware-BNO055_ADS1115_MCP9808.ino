@@ -38,7 +38,8 @@ int alert_smpl_intvl = 60;													   // ALERT SAMPLE INTERVAL, HOW MANY SEC
 const int alrt_publish_rnds = 2;											   // WHILE IN SENSOR ALERT - HOW MANY COMPLETE PUBLISH CYCLES TO LOOP THROUGH
 int sensor_alert_thrshld[no_of_sensors] = {999, 999, 999, 999, 2, 15, 15, 15}; // SET ARRAY FOR SENSOR ALERT
 
-// SLEEP SETTINGS //
+// POWER SETTINGS //
+int solar_opt = 0;				// SOLAR OPTIMIZATION, 0 = SOLAR OPT OFF, 5 = 5V SOLAR PANEL, 6 = 6V SOLAR PANEL
 int enable_wop = 0;				// ENABLE WAKE-ON-PING
 int sleep = 1;					// SLEEP MODE ON = 1 / SLEEP MODE OFF = 0
 int sleep_wait = 1;				// TIME TO WAIT AFTER PUBLISH TO FALL ASLEEP
@@ -76,8 +77,73 @@ int sla = 0;														// USED IN CREATION OF PREAMBLE
 int led1 = D7;														// ONBOARD BLUE LED
 int16_t adc0, adc1, adc2, adc3;										// IMU
 float adcx0, adcx1, adcx2, adcx3;									// IMU
-int resetct = 0;													// DETERMINES I2C REINIT
 // END OF DECLARATIONS AND INITIAL PARAMETERS
+
+void i2cWake()
+{
+	//WAKE UP i2c DEVICES / IMU
+	Wire.beginTransmission(0x28);
+	Wire.write(0x3E);
+	Wire.write(0x00);
+	Wire.endTransmission();
+	for (uint32_t ms = millis(); millis() - ms < 250;)
+		;
+}
+
+void i2cSleep()
+{
+	//PUT i2c DEVICES / IMU TO SUSPEND
+	Wire.beginTransmission(0x28);
+	Wire.write(0x3E);
+	Wire.write(0x02);
+	Wire.endTransmission();
+	for (uint32_t ms = millis(); millis() - ms < 250;)
+		;
+}
+
+void preamble()
+{
+	// PUT PREAMBLE ON DATA
+	fullpub_temp1[0] = 0;
+	fullpublish[0] = 0;
+	snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d%d", alrt_state_chng, no_of_sensors);
+	strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
+	for (sla = 0; sla < no_of_sensors; sla++)
+	{
+		snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d", sensorlen[sla]);
+		strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
+	}
+}
+
+void publish()
+{
+	// PARTICLE.PUBLISH EVENT
+	strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
+	Serial.println(fullpublish);
+	Serial.printf("The size of published string is %d bytes. \n", strlen(fullpublish));
+	if (do_publish)
+	{
+		Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK);
+		digitalWrite(led1, HIGH);
+		for (uint32_t ms = millis(); millis() - ms < 1000; Particle.process())
+			;
+		digitalWrite(led1, LOW);
+	}
+	fullpublish[0] = 0;
+}
+
+void initI2C_devices()
+{
+	bno.setExtCrystalUse(true);
+	ads.getAddr_ADS1115(ADS1115_DEFAULT_ADDRESS); // (ADDR = GND)
+	ads.setGain(GAIN_TWOTHIRDS);				  // 2/3x gain +/- 6.144V  1 bit = 0.1875mV
+	ads.setMode(MODE_CONTIN);					  // ads.setMode(MODE_CONTIN) = Continuous conversion mode - ads.setMode(MODE_SINGLE); Power-down single-shot mode (default)
+	ads.setRate(RATE_128);						  // 128SPS (default) 8,16,32,64,128,250,475,860
+	ads.setOSMode(OSMODE_SINGLE);				  // Set to start a single-conversion
+	ads.begin();
+	mcp.setResolution(MCP9808_SLOWEST);
+	i2cWake();
+}
 
 void setup()
 {
@@ -86,18 +152,24 @@ void setup()
 	pinMode(led1, OUTPUT);
 
 	// SOLAR SETTINGS //
-	//PMIC pmic; //INITIALIZE THE PMIC CLASS TO CALL THE POWER MANAGEMENT FUNCTIONS BELOW
-	//pmic.setChargeCurrent(0,0,1,0,0,0); 	//SET CHARGING CURRENT TO 1024MA (512 + 512 OFFSET)
-	//pmic.setInputVoltageLimit(4840);     	//SET THE LOWEST INPUT VOLTAGE TO 4.84 VOLTS, FOR 5V SOLAR PANEL
-	//pmic.setInputVoltageLimit(5080);     	//SET THE LOWEST INPUT VOLTAGE TO 5.08 VOLTS, FOR 6V SOLAR PANEL
-
-	Wire.begin(); // Initialise I2C communication as Master
+	if (solar_opt)
+	{
+		PMIC pmic;								 //INITIALIZE THE PMIC CLASS TO CALL THE POWER MANAGEMENT FUNCTIONS BELOW
+		pmic.setChargeCurrent(0, 0, 1, 0, 0, 0); //SET CHARGING CURRENT TO 1024MA (512 + 512 OFFSET)
+		if (solar_opt == 5)
+			pmic.setInputVoltageLimit(4840); //SET THE LOWEST INPUT VOLTAGE TO 4.84 VOLTS, FOR 5V SOLAR PANEL
+		if (solar_opt == 6)
+			pmic.setInputVoltageLimit(5080); //SET THE LOWEST INPUT VOLTAGE TO 5.08 VOLTS, FOR 6V SOLAR PANEL
+	}
+	Wire.begin(); // INITIALIZE I2C
 	for (uint32_t ms = millis(); millis() - ms < 500;)
 		;
 
-	bno.begin(); // Initialize IMU
+	bno.begin(); // INITIALIZE IMU
 	for (uint32_t ms = millis(); millis() - ms < 500;)
 		;
+
+	initI2C_devices();
 }
 
 ApplicationWatchdog wd(app_watchdog, System.reset);
@@ -127,26 +199,6 @@ void loop()
 		for (uint32_t ms = millis(); millis() - ms < 5000; Particle.process())									   //EXTRA TIME BEFORE DEEP SLEEP
 			;
 		System.sleep(SLEEP_MODE_DEEP, 7200); // SLEEP 2 HOURS IF SoC < 20
-	}
-
-	//The following eight lines were moved from 'setup' to 'loop' so that when power is cut
-	//off from the i2c devices, they can properly initialize when reenergized. This however
-	//will cause is loss of 'x' orination. More for future implementation and doesn't hurt to be here now
-	if (resetct == 0)
-	{
-		bno.setExtCrystalUse(true);
-		ads.getAddr_ADS1115(ADS1115_DEFAULT_ADDRESS); // (ADDR = GND)
-		ads.setGain(GAIN_TWOTHIRDS);				  // 2/3x gain +/- 6.144V  1 bit = 0.1875mV
-		ads.setMode(MODE_CONTIN);					  // ads.setMode(MODE_CONTIN) = Continuous conversion mode - ads.setMode(MODE_SINGLE); Power-down single-shot mode (default)
-		ads.setRate(RATE_128);						  // 128SPS (default) 8,16,32,64,128,250,475,860
-		ads.setOSMode(OSMODE_SINGLE);				  // Set to start a single-conversion
-		ads.begin();
-		mcp.setResolution(MCP9808_SLOWEST);
-		Wire.beginTransmission(0x28); //Start I2C transmission - BNO055 I2C address is 0x28(40)
-		Wire.write(0x3E);			  // Select PWR_MODE register
-		Wire.write(0x00);			  // Power modes selection: 0x00 = Normal, 0x01 = Low Power, 0x02 = Suspend Mode
-		Wire.endTransmission();		  // Stop I2C transmission
-		resetct = 1;
 	}
 
 	///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ START SENSOR VALUE GATHERING \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
@@ -256,15 +308,7 @@ void loop()
 	//-- BEGIN ALERT STATE PUBLISH FLUSH --
 	if ((alrt_state_chng == 3) || (alrt_state_chng == 1))
 	{
-		fullpub_temp1[0] = 0;
-		fullpublish[0] = 0; // PUT PREAMBLE ON DATA
-		snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d%d", alrt_state_chng, no_of_sensors);
-		strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-		for (sla = 0; sla < no_of_sensors; sla++)
-		{
-			snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d", sensorlen[sla]);
-			strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-		} // END OF PUT PREAMBLE ON DATA
+		preamble();
 		for (xa = 0; xa < x; xa++)
 		{
 			for (y = 0; y < no_of_sensors; y++)
@@ -293,18 +337,7 @@ void loop()
 		{
 			snprintf(fullpub_temp1, sizeof(fullpub_temp1), "E%d%d%d", current_smpl_intvl, ((int)(fuel.getVCell() * 100)), ((int)(fuel.getSoC() * 100))); // ADDING SAMPLE RATE, BATTERY INFO
 		}
-
-		strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-		Serial.println(fullpublish);
-		Serial.printf("ASP: The size of published string is %d bytes. \n", strlen(fullpublish));
-		if (do_publish)
-		{
-			Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
-			digitalWrite(led1, HIGH);
-			for (uint32_t ms = millis(); millis() - ms < 1000; Particle.process())
-				;
-			digitalWrite(led1, LOW);
-		}
+		publish();
 		if (alrt_state_chng == 1)
 		{
 			current_smpl_intvl = alert_smpl_intvl;
@@ -318,15 +351,7 @@ void loop()
 		//-- SEND OUT FIRST ALERT READING --
 		if (alrt_state_chng == 1)
 		{
-			fullpub_temp1[0] = 0;
-			fullpublish[0] = 0; // PUT PREAMBLE ON DATA
-			snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d%d", alrt_state_chng, no_of_sensors);
-			strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-			for (sla = 0; sla < no_of_sensors; sla++)
-			{
-				snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d", sensorlen[sla]);
-				strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-			} // END OF PUT PREAMBLE ON DATA
+			preamble();
 			for (y = 0; y < no_of_sensors; y++)
 			{
 				if (y < 4)
@@ -342,18 +367,7 @@ void loop()
 			FuelGauge fuel;																			// GET BATTERY INFO
 			fullpub_temp1[0] = 0;
 			snprintf(fullpub_temp1, sizeof(fullpub_temp1), "E%d%d%d", norm_smpl_intvl, ((int)(fuel.getVCell() * 100)), ((int)(fuel.getSoC() * 100))); // ADDING SAMPLE RATE, BATTERY INFO
-			strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-			Serial.println(fullpublish);
-			Serial.printf("ASP: The size of first alert published string is %d bytes. \n", strlen(fullpublish));
-			if (do_publish)
-			{
-				Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
-				digitalWrite(led1, HIGH);
-				for (uint32_t ms = millis(); millis() - ms < 1000; Particle.process())
-					;
-				digitalWrite(led1, LOW);
-			}
-			fullpublish[0] = 0; // CLEAR THE FULLPUBLISH STRING
+			publish();
 			alrt_state_chng = 2;
 		}
 		//-- END SEND OUT FIRST ALERT READING --
@@ -363,15 +377,7 @@ void loop()
 	//-- START SAMPLES TAKEN CHECK AND PUBLISH --
 	if (x == rnds_to_publish)
 	{
-		fullpub_temp1[0] = 0;
-		fullpublish[0] = 0; // PUT PREAMBLE ON DATA
-		snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d%d", alrt_state_chng, no_of_sensors);
-		strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-		for (sla = 0; sla < no_of_sensors; sla++)
-		{
-			snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d", sensorlen[sla]);
-			strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-		} // END OF PUT PREAMBLE ON DATA
+		preamble();
 		for (x = 0; x < rnds_to_publish; x++)
 		{
 			for (y = 0; y < no_of_sensors; y++)
@@ -391,19 +397,7 @@ void loop()
 		FuelGauge fuel; // GET BATTERY INFO
 		fullpub_temp1[0] = 0;
 		snprintf(fullpub_temp1, sizeof(fullpub_temp1), "E%d%d%d", current_smpl_intvl, ((int)(fuel.getVCell() * 100)), ((int)(fuel.getSoC() * 100))); // ADDING SAMPLE RATE, BATTERY INFO
-		strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-		Serial.println(fullpublish);
-		Serial.printf("The size of published string is %d bytes. \n", strlen(fullpublish));
-		if (do_publish)
-		{
-			Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
-			digitalWrite(led1, HIGH);
-			for (uint32_t ms = millis(); millis() - ms < 1000; Particle.process())
-				;
-			digitalWrite(led1, LOW);
-		}
-
-		fullpublish[0] = 0; // CLEAR THE FULLPUBLISH STRING
+		publish();
 		pubs_performs++;
 	}
 	//-- END SAMPLES TAKEN CHECK AND PUBLISH --
@@ -411,13 +405,7 @@ void loop()
 	//-- START BEDTIME CHECK FOR NORMAL MODE --
 	if (sleep == 1 && published_norm1_or_alert2 == 1 && norm_smpl_intvl > 23 && t2 >= (Time.now() + sleep_wait))
 	{
-		//PUT IMU TO SUSPEND
-		Wire.beginTransmission(0x28);
-		Wire.write(0x3E);
-		Wire.write(0x02);
-		Wire.endTransmission();
-		for (uint32_t ms = millis(); millis() - ms < 250;)
-			;
+		i2cSleep();
 		if (enable_wop)
 		{
 			System.sleep({RI_UC, BTN}, {RISING, FALLING}, (((norm_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 5), SLEEP_NETWORK_STANDBY);
@@ -428,26 +416,14 @@ void loop()
 		{
 			System.sleep(BTN, FALLING, (((norm_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 5), SLEEP_NETWORK_STANDBY);
 		}
-		//WAKE UP IMU
-		Wire.beginTransmission(0x28);
-		Wire.write(0x3E);
-		Wire.write(0x00);
-		Wire.endTransmission();
-		for (uint32_t ms = millis(); millis() - ms < 250;)
-			;
+		i2cWake();
 		published_norm1_or_alert2 = 0;
 	}
 
 	//-- START BEDTIME CHECK FOR ALERT MODE --
 	if (sleep == 1 && published_norm1_or_alert2 == 2 && alert_smpl_intvl > 23 && t2 >= (Time.now() + sleep_wait))
 	{
-		//PUT IMU TO SUSPEND
-		Wire.beginTransmission(0x28);
-		Wire.write(0x3E);
-		Wire.write(0x02);
-		Wire.endTransmission();
-		for (uint32_t ms = millis(); millis() - ms < 250;)
-			;
+		i2cSleep();
 		if (enable_wop)
 		{
 			System.sleep({RI_UC, BTN}, {RISING, FALLING}, (((alert_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 5), SLEEP_NETWORK_STANDBY);
@@ -458,13 +434,7 @@ void loop()
 		{
 			System.sleep(BTN, FALLING, (((alert_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 5), SLEEP_NETWORK_STANDBY);
 		}
-		//WAKE UP IMU
-		Wire.beginTransmission(0x28);
-		Wire.write(0x3E);
-		Wire.write(0x00);
-		Wire.endTransmission();
-		for (uint32_t ms = millis(); millis() - ms < 250;)
-			;
+		i2cWake();
 		published_norm1_or_alert2 = 0;
 	}
 	//-- END BEDTIME CHECK --
