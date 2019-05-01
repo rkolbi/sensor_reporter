@@ -68,7 +68,7 @@ int sensor_hist_depth = 0;											// SENSOR SAMPLE EVENT CHECK DEPTH
 int alert_cycl_mark = 0;											// CYCLE MARK BASED ON 'smpls_performed' TO CONTINUE ALERT REPORTING
 int t2 = 0;															// EQUALS TIME(0) + norm_smpl_intvl, USED TO DETERMINE WHEN TO TAKE SAMPLE
 int alrt_state_chng = 0;											// CHANGE IN ALERT STATE FLAG
-float sensor_value[no_of_sensors][6];								// DIMENSION THE SENSOR VALUE ARRAY
+float sensor_value[no_of_sensors][7];								// DIMENSION THE SENSOR VALUE ARRAY
 int vcell;															// BATTERY INFO
 int vsoc;															// BATTERY INFO
 int a = 0;															// GP TIMER USE
@@ -78,6 +78,8 @@ int led1 = D7;														// ONBOARD BLUE LED
 int16_t adc0, adc1, adc2, adc3;										// IMU
 float adcx0, adcx1, adcx2, adcx3;									// IMU
 int resetct = 0;													// DETERMINES I2C REINIT
+int orxt1 = 0;
+int orxt2 = 0;
 // END OF DECLARATIONS AND INITIAL PARAMETERS
 
 void i2cWake()
@@ -113,6 +115,16 @@ void preamble()
 		strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
 	}
 }
+
+void fullpublishout()
+{
+	Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
+	digitalWrite(led1, HIGH);
+	for (uint32_t ms = millis(); millis() - ms < 500; Particle.process())
+		;
+	digitalWrite(led1, LOW);
+}
+
 void setup()
 {
 	Serial.begin(9600);
@@ -161,8 +173,8 @@ void loop()
 	if (fuel.getSoC() < 20) //LOW BATTERY DEEP SLEEP
 	{
 		if (a != 0)
-			Particle.publish("a", "9 - DEVICE SHUTTING DOWN FOR 8 HOURS, BATTERY SoC < 20!", 60, PRIVATE, NO_ACK); // LET SERVER KNOW WE ARE GOING TO SLEEP
-		for (uint32_t ms = millis(); millis() - ms < 5000; Particle.process())									   //EXTRA TIME BEFORE DEEP SLEEP
+			Particle.publish("a", "9 - DEVICE SHUTTING DOWN, BATTERY SoC < 20!", 60, PRIVATE, NO_ACK); // LET SERVER KNOW WE ARE GOING TO SLEEP
+		for (uint32_t ms = millis(); millis() - ms < 5000; Particle.process())						   //EXTRA TIME BEFORE DEEP SLEEP
 			;
 		System.sleep(SLEEP_MODE_DEEP, 7200); // SLEEP 2 HOURS IF SoC < 20
 	}
@@ -214,7 +226,15 @@ void loop()
 	bno.getEvent(&event);
 
 	float orx = event.orientation.x; // BNO055 ORIENTATION X
-	sensor_value[5][0] = orx;
+	// MAKE ORX RELATIVE TO 180'
+	orxt1 = int(orx) - 180;
+	orxt1 = abs((orxt1 + 180) % 360 - 180);
+	orxt2 = 180 - int(orx);
+	orxt2 = abs((orxt2 + 180) % 360 - 180);
+	if (orxt1 > orxt2)
+		sensor_value[5][0] = float(orxt2);
+	else
+		sensor_value[5][0] = float(orxt1);
 
 	float ory = event.orientation.y; // BNO055 ORIENTATION Y
 	ory = ory + 180;
@@ -244,6 +264,7 @@ void loop()
 		if (smpls_performed > 4)
 		{
 			alrt_ckng_tmp = fabs(sensor_value[w][0] - sensor_value[w][5]);
+			sensor_value[w][6] = alrt_ckng_tmp;
 			if (alrt_ckng_tmp > sensor_alert_thrshld[w])
 			{
 				Serial.printf("OOS Sensor %d, ", w);
@@ -325,13 +346,8 @@ void loop()
 		Serial.println(fullpublish);
 		Serial.printf("ASP: The size of published string is %d bytes. \n", strlen(fullpublish));
 		if (do_publish)
-		{
-			Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
-			digitalWrite(led1, HIGH);
-			for (uint32_t ms = millis(); millis() - ms < 500; Particle.process())
-				;
-			digitalWrite(led1, LOW);
-		}
+			fullpublishout();
+
 		if (alrt_state_chng == 1)
 		{
 			current_smpl_intvl = alert_smpl_intvl;
@@ -344,7 +360,7 @@ void loop()
 			current_smpl_intvl = norm_smpl_intvl;
 			t2 = Time.now() + current_smpl_intvl;
 		}
-		//-- SEND OUT FIRST ALERT READING --
+		//-- SEND OUT SYSTEM NOTE TO ALERT OOS
 		if (alrt_state_chng == 1)
 		{
 
@@ -357,11 +373,11 @@ void loop()
 			{
 				if (y < 4)
 				{ //THIS IS TO LET THE FIRST FOUR READINGS HAVE TWO DECIMAL PLACES
-					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.2f ", sensorlen[y], sensor_value[y][0]);
+					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.2f(%.1f) ", sensorlen[y], sensor_value[y][0], sensor_value[y][6]);
 				}
 				else
 				{
-					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.0f ", sensorlen[y], sensor_value[y][0]);
+					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.0f(%.1f) ", sensorlen[y], sensor_value[y][0], sensor_value[y][6]);
 				}
 				strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1); // better to check the boundaries
 			}																						// BUILT FULLPUBLISH STRING
@@ -371,16 +387,10 @@ void loop()
 			Serial.println(fullpublish);
 			Serial.printf("ASP: The size of published string is %d bytes. \n", strlen(fullpublish));
 			if (do_publish)
-			{
-				Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
-				digitalWrite(led1, HIGH);
-				for (uint32_t ms = millis(); millis() - ms < 500; Particle.process())
-					;
-				digitalWrite(led1, LOW);
-			}
+				fullpublishout();
 			alrt_state_chng = 2;
 		}
-		//-- END SEND OUT FIRST ALERT READING --
+		//-- END SEND OUT SYSTEM NOTE TO ALERT OOS
 	}
 	//-- END ALERT STATE PUBLISH FLUSH --
 	else
@@ -412,14 +422,7 @@ void loop()
 			Serial.println(fullpublish);
 			Serial.printf("The size of published string is %d bytes. \n", strlen(fullpublish));
 			if (do_publish)
-			{
-				Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
-				digitalWrite(led1, HIGH);
-				for (uint32_t ms = millis(); millis() - ms < 1000; Particle.process())
-					;
-				digitalWrite(led1, LOW);
-			}
-
+				fullpublishout();
 			fullpublish[0] = 0; // CLEAR THE FULLPUBLISH STRING
 			pubs_performs++;
 		}
