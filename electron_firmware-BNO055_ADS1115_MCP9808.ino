@@ -25,23 +25,23 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ BEGIN USER CONFIGURABLE PARAMETERS \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
 
 // SAMPLE & PUBLISH SETTINGS //
-int norm_smpl_intvl = 60;	  // SAMPLE INTERVAL, HOW MANY SECONDS TO WAIT BETWEEN EACH
-const int rnds_to_publish = 5; // WAIT UNTIL x NUMBER OF SAMPLES ARE GATHERED TO BURST PUBLISH
-int do_publish = 1;			   // PERFORM PARTICLE.PUBLISH EVENTS
+int norm_smpl_intvl = 120;		// SAMPLE INTERVAL, HOW MANY SECONDS TO WAIT BETWEEN EACH
+const int rnds_to_publish = 11; // WAIT UNTIL x NUMBER OF SAMPLES ARE GATHERED TO BURST PUBLISH
+int do_publish = 1;				// PERFORM PARTICLE.PUBLISH EVENTS
 
 // SENSOR REPORT CONFIG
 const int no_of_sensors = 8;							 // THE NUMBER OF SENSOR READINGS TO COLLECT PER SAMPLE
 int sensorlen[no_of_sensors] = {4, 4, 4, 4, 3, 3, 3, 3}; // THE LENGTH OF EACH SENSOR'S VALUE
 
 // ALAERT SETTING //
-int alert_smpl_intvl = 30;													   // ALERT SAMPLE INTERVAL, HOW MANY SECONDS TO WAIT BETWEEN EACH
+int alert_smpl_intvl = 60;													   // ALERT SAMPLE INTERVAL, HOW MANY SECONDS TO WAIT BETWEEN EACH
 const int alrt_publish_rnds = 2;											   // WHILE IN SENSOR ALERT - HOW MANY COMPLETE PUBLISH CYCLES TO LOOP THROUGH
 int sensor_alert_thrshld[no_of_sensors] = {999, 999, 999, 999, 2, 15, 15, 15}; // SET ARRAY FOR SENSOR ALERT
 
 // POWER SETTINGS //
 int solar_opt = 0;				// SOLAR OPTIMIZATION, 0 = SOLAR OPT OFF, 5 = 5V SOLAR PANEL, 6 = 6V SOLAR PANEL
 int enable_wop = 0;				// ENABLE WAKE-ON-PING
-int sleep = 0;					// SLEEP MODE ON = 1 / SLEEP MODE OFF = 0
+int sleep = 1;					// SLEEP MODE ON = 1 / SLEEP MODE OFF = 0
 int sleep_wait = 1;				// TIME TO WAIT AFTER PUBLISH TO FALL ASLEEP
 int secs_less_intrvl_sleep = 0; // ADDITIONAL SECONDS TO DELAY FROM SAMPLE INTERVAL FOR SLEEP TIME, 5 SECONDS ARE ALREADY SUBTRACTED
 int app_watchdog = 360000;		// APPLICATION WATCHDOG TIME TRIGGER IS MS - SLEEP TIME SHOULD NOT BE COUNTED,
