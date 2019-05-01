@@ -17,9 +17,9 @@ SYSTEM_THREAD(ENABLED)
 ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ BEGIN USER CONFIGURABLE PARAMETERS \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
 
 // SAMPLE & PUBLISH SETTINGS //
-int norm_smpl_intvl = 180;	 // SAMPLE INTERVAL, HOW MANY SECONDS TO WAIT BETWEEN EACH
-const int rnds_to_publish = 7; // WAIT UNTIL x NUMBER OF SAMPLES ARE GATHERED TO BURST PUBLISH
-int do_publish = 1;			   // PERFORM PARTICLE.PUBLISH EVENTS
+int norm_smpl_intvl = 120;		// SAMPLE INTERVAL, HOW MANY SECONDS TO WAIT BETWEEN EACH
+const int rnds_to_publish = 11; // WAIT UNTIL x NUMBER OF SAMPLES ARE GATHERED TO BURST PUBLISH
+int do_publish = 1;				// PERFORM PARTICLE.PUBLISH EVENTS
 
 // SENSOR REPORT CONFIG
 const int no_of_sensors = 8;							 // THE NUMBER OF SENSOR READINGS TO COLLECT PER SAMPLE
@@ -30,7 +30,8 @@ int alert_smpl_intvl = 60;													   // ALERT SAMPLE INTERVAL, HOW MANY SEC
 const int alrt_publish_rnds = 2;											   // WHILE IN SENSOR ALERT - HOW MANY COMPLETE PUBLISH CYCLES TO LOOP THROUGH
 int sensor_alert_thrshld[no_of_sensors] = {999, 999, 999, 999, 2, 15, 15, 15}; // SET ARRAY FOR SENSOR ALERT
 
-// SLEEP SETTINGS //
+// POWER SETTINGS //
+int solar_opt = 0;				// SOLAR OPTIMIZATION, 0 = SOLAR OPT OFF, 5 = 5V SOLAR PANEL, 6 = 6V SOLAR PANEL
 int enable_wop = 0;				// ENABLE WAKE-ON-PING
 int sleep = 1;					// SLEEP MODE ON = 1 / SLEEP MODE OFF = 0
 int sleep_wait = 1;				// TIME TO WAIT AFTER PUBLISH TO FALL ASLEEP
@@ -71,6 +72,29 @@ float adcx0, adcx1, adcx2, adcx3;									// IMU
 int resetct = 0;													// DETERMINES I2C REINIT
 // END OF DECLARATIONS AND INITIAL PARAMETERS
 
+void i2cWake()
+{
+	//WAKE UP i2c DEVICES
+}
+
+void i2cSleep()
+{
+	//PUT i2c DEVICES TO SUSPEND
+}
+
+void preamble()
+{
+	// PUT PREAMBLE ON DATA
+	fullpub_temp1[0] = 0;
+	fullpublish[0] = 0;
+	snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d%d", alrt_state_chng, no_of_sensors);
+	strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
+	for (sla = 0; sla < no_of_sensors; sla++)
+	{
+		snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d", sensorlen[sla]);
+		strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
+	}
+}
 void setup()
 {
 	Serial.begin(9600);
@@ -78,11 +102,15 @@ void setup()
 	pinMode(led1, OUTPUT);
 
 	// SOLAR SETTINGS //
-	//PMIC pmic; //INITIALIZE THE PMIC CLASS TO CALL THE POWER MANAGEMENT FUNCTIONS BELOW
-	//pmic.setChargeCurrent(0,0,1,0,0,0); 	//SET CHARGING CURRENT TO 1024MA (512 + 512 OFFSET)
-	//pmic.setInputVoltageLimit(4840);     	//SET THE LOWEST INPUT VOLTAGE TO 4.84 VOLTS, FOR 5V SOLAR PANEL
-	//pmic.setInputVoltageLimit(5080);     	//SET THE LOWEST INPUT VOLTAGE TO 5.08 VOLTS, FOR 6V SOLAR PANEL
-
+	if (solar_opt)
+	{
+		PMIC pmic;								 //INITIALIZE THE PMIC CLASS TO CALL THE POWER MANAGEMENT FUNCTIONS BELOW
+		pmic.setChargeCurrent(0, 0, 1, 0, 0, 0); //SET CHARGING CURRENT TO 1024MA (512 + 512 OFFSET)
+		if (solar_opt == 5)
+			pmic.setInputVoltageLimit(4840); //SET THE LOWEST INPUT VOLTAGE TO 4.84 VOLTS, FOR 5V SOLAR PANEL
+		if (solar_opt == 6)
+			pmic.setInputVoltageLimit(5080); //SET THE LOWEST INPUT VOLTAGE TO 5.08 VOLTS, FOR 6V SOLAR PANEL
+	}
 }
 
 ApplicationWatchdog wd(app_watchdog, System.reset);
@@ -129,7 +157,6 @@ void loop()
 	sensor_value[5][0] = random(501, 510); // PLACES RANDOM VALUES FOR TESTING
 	sensor_value[6][0] = random(491, 500); // PLACES RANDOM VALUES FOR TESTING
 	sensor_value[7][0] = random(501, 510); // PLACES RANDOM VALUES FOR TESTING
-
 	///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ END SENSOR VALUE GATHERING \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
 
 	///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/GATHER, EVENT CHECK, AND PUBLISH \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
@@ -165,7 +192,7 @@ void loop()
 	//-- END OF ALERT CHECK
 
 	//-- START SAMPLING TIME CHECK --
-	if (Time.now() > t2)
+	if (Time.now() >= t2)
 	{
 		for (w = 0; w < no_of_sensors; w++)
 		{
@@ -197,15 +224,7 @@ void loop()
 	//-- BEGIN ALERT STATE PUBLISH FLUSH --
 	if ((alrt_state_chng == 3) || (alrt_state_chng == 1))
 	{
-		fullpub_temp1[0] = 0;
-		fullpublish[0] = 0; // PUT PREAMBLE ON DATA
-		snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d%d", alrt_state_chng, no_of_sensors);
-		strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-		for (sla = 0; sla < no_of_sensors; sla++)
-		{
-			snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d", sensorlen[sla]);
-			strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-		} // END OF PUT PREAMBLE ON DATA
+		preamble();
 		for (xa = 0; xa < x; xa++)
 		{
 			for (y = 0; y < no_of_sensors; y++)
@@ -242,7 +261,7 @@ void loop()
 		{
 			Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
 			digitalWrite(led1, HIGH);
-			for (uint32_t ms = millis(); millis() - ms < 1000; Particle.process())
+			for (uint32_t ms = millis(); millis() - ms < 500; Particle.process())
 				;
 			digitalWrite(led1, LOW);
 		}
@@ -251,41 +270,80 @@ void loop()
 			current_smpl_intvl = alert_smpl_intvl;
 			t2 = Time.now() + current_smpl_intvl;
 		}
-		fullpublish[0] = 0; // CLEAR THE FULLPUBLISH STRING
 		pubs_performs++;
 		if (alrt_state_chng == 3)
+		{
 			alrt_state_chng = 0;
-
+			current_smpl_intvl = norm_smpl_intvl;
+			t2 = Time.now() + current_smpl_intvl;
+		}
 		//-- SEND OUT FIRST ALERT READING --
 		if (alrt_state_chng == 1)
 		{
+
 			fullpub_temp1[0] = 0;
-			fullpublish[0] = 0; // PUT PREAMBLE ON DATA
-			snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d%d", alrt_state_chng, no_of_sensors);
+			fullpublish[0] = 0;
+			snprintf(fullpub_temp1, sizeof(fullpub_temp1), "9 - OOS: ");
 			strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-			for (sla = 0; sla < no_of_sensors; sla++)
-			{
-				snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d", sensorlen[sla]);
-				strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-			} // END OF PUT PREAMBLE ON DATA
+
 			for (y = 0; y < no_of_sensors; y++)
 			{
 				if (y < 4)
 				{ //THIS IS TO LET THE FIRST FOUR READINGS HAVE TWO DECIMAL PLACES
-					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.2f", sensorlen[y], sensor_value[y][0]);
+					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.2f ", sensorlen[y], sensor_value[y][0]);
 				}
 				else
 				{
-					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.0f", sensorlen[y], sensor_value[y][0]);
+					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.0f ", sensorlen[y], sensor_value[y][0]);
 				}
 				strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1); // better to check the boundaries
 			}																						// BUILT FULLPUBLISH STRING
 			FuelGauge fuel;																			// GET BATTERY INFO
 			fullpub_temp1[0] = 0;
 			snprintf(fullpub_temp1, sizeof(fullpub_temp1), "E%d%d%d", norm_smpl_intvl, ((int)(fuel.getVCell() * 100)), ((int)(fuel.getSoC() * 100))); // ADDING SAMPLE RATE, BATTERY INFO
+			Serial.println(fullpublish);
+			Serial.printf("ASP: The size of published string is %d bytes. \n", strlen(fullpublish));
+			if (do_publish)
+			{
+				Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
+				digitalWrite(led1, HIGH);
+				for (uint32_t ms = millis(); millis() - ms < 500; Particle.process())
+					;
+				digitalWrite(led1, LOW);
+			}
+			alrt_state_chng = 2;
+		}
+		//-- END SEND OUT FIRST ALERT READING --
+	}
+	//-- END ALERT STATE PUBLISH FLUSH --
+	else
+	//-- START NORMAL CHECK AND PUBLISH --
+	{
+		if (x == rnds_to_publish)
+		{
+			preamble();
+			for (x = 0; x < rnds_to_publish; x++)
+			{
+				for (y = 0; y < no_of_sensors; y++)
+				{
+					if (y < 4)
+					{ //THIS IS TO LET THE FIRST FOUR READINGS HAVE TWO DECIMAL PLACES
+						snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.2f", sensorlen[y], storage[x][y]);
+					}
+					else
+					{
+						snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.0f", sensorlen[y], storage[x][y]);
+					}
+					strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1); // better to check the boundaries
+				}
+			} // BUILT FULLPUBLISH STRING
+			x = 0;
+			FuelGauge fuel; // GET BATTERY INFO
+			fullpub_temp1[0] = 0;
+			snprintf(fullpub_temp1, sizeof(fullpub_temp1), "E%d%d%d", current_smpl_intvl, ((int)(fuel.getVCell() * 100)), ((int)(fuel.getSoC() * 100))); // ADDING SAMPLE RATE, BATTERY INFO
 			strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
 			Serial.println(fullpublish);
-			Serial.printf("ASP: The size of first alert published string is %d bytes. \n", strlen(fullpublish));
+			Serial.printf("The size of published string is %d bytes. \n", strlen(fullpublish));
 			if (do_publish)
 			{
 				Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
@@ -294,71 +352,16 @@ void loop()
 					;
 				digitalWrite(led1, LOW);
 			}
+
 			fullpublish[0] = 0; // CLEAR THE FULLPUBLISH STRING
-			alrt_state_chng = 2;
+			pubs_performs++;
 		}
-		//-- END SEND OUT FIRST ALERT READING --
+		//-- END SAMPLES TAKEN CHECK AND PUBLISH --
 	}
-	//-- END ALERT STATE PUBLISH FLUSH --
-
-	//-- START SAMPLES TAKEN CHECK AND PUBLISH --
-	if (x == rnds_to_publish)
-	{
-		fullpub_temp1[0] = 0;
-		fullpublish[0] = 0; // PUT PREAMBLE ON DATA
-		snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d%d", alrt_state_chng, no_of_sensors);
-		strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-		for (sla = 0; sla < no_of_sensors; sla++)
-		{
-			snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%d", sensorlen[sla]);
-			strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-		} // END OF PUT PREAMBLE ON DATA
-		for (x = 0; x < rnds_to_publish; x++)
-		{
-			for (y = 0; y < no_of_sensors; y++)
-			{
-				if (y < 4)
-				{ //THIS IS TO LET THE FIRST FOUR READINGS HAVE TWO DECIMAL PLACES
-					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.2f", sensorlen[y], storage[x][y]);
-				}
-				else
-				{
-					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.0f", sensorlen[y], storage[x][y]);
-				}
-				strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1); // better to check the boundaries
-			}
-		} // BUILT FULLPUBLISH STRING
-		x = 0;
-		FuelGauge fuel; // GET BATTERY INFO
-		fullpub_temp1[0] = 0;
-		snprintf(fullpub_temp1, sizeof(fullpub_temp1), "E%d%d%d", current_smpl_intvl, ((int)(fuel.getVCell() * 100)), ((int)(fuel.getSoC() * 100))); // ADDING SAMPLE RATE, BATTERY INFO
-		strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1);
-		Serial.println(fullpublish);
-		Serial.printf("The size of published string is %d bytes. \n", strlen(fullpublish));
-		if (do_publish)
-		{
-			Particle.publish("a", fullpublish, 60, PRIVATE, NO_ACK); // PARTICLE.PUBLISH EVENT ! ! ! !
-			digitalWrite(led1, HIGH);
-			for (uint32_t ms = millis(); millis() - ms < 1000; Particle.process())
-				;
-			digitalWrite(led1, LOW);
-		}
-
-		fullpublish[0] = 0; // CLEAR THE FULLPUBLISH STRING
-		pubs_performs++;
-	}
-	//-- END SAMPLES TAKEN CHECK AND PUBLISH --
-
 	//-- START BEDTIME CHECK FOR NORMAL MODE --
 	if (sleep == 1 && published_norm1_or_alert2 == 1 && norm_smpl_intvl > 23 && t2 >= (Time.now() + sleep_wait))
 	{
-		//PUT IMU TO SUSPEND
-		Wire.beginTransmission(0x28);
-		Wire.write(0x3E);
-		Wire.write(0x02);
-		Wire.endTransmission();
-		for (uint32_t ms = millis(); millis() - ms < 250;)
-			;
+		i2cSleep();
 		if (enable_wop)
 		{
 			System.sleep({RI_UC, BTN}, {RISING, FALLING}, (((norm_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 5), SLEEP_NETWORK_STANDBY);
@@ -369,26 +372,14 @@ void loop()
 		{
 			System.sleep(BTN, FALLING, (((norm_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 5), SLEEP_NETWORK_STANDBY);
 		}
-		//WAKE UP IMU
-		Wire.beginTransmission(0x28);
-		Wire.write(0x3E);
-		Wire.write(0x00);
-		Wire.endTransmission();
-		for (uint32_t ms = millis(); millis() - ms < 250;)
-			;
+		i2cWake();
 		published_norm1_or_alert2 = 0;
 	}
 
 	//-- START BEDTIME CHECK FOR ALERT MODE --
 	if (sleep == 1 && published_norm1_or_alert2 == 2 && alert_smpl_intvl > 23 && t2 >= (Time.now() + sleep_wait))
 	{
-		//PUT IMU TO SUSPEND
-		Wire.beginTransmission(0x28);
-		Wire.write(0x3E);
-		Wire.write(0x02);
-		Wire.endTransmission();
-		for (uint32_t ms = millis(); millis() - ms < 250;)
-			;
+		i2cSleep();
 		if (enable_wop)
 		{
 			System.sleep({RI_UC, BTN}, {RISING, FALLING}, (((alert_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 5), SLEEP_NETWORK_STANDBY);
@@ -399,18 +390,12 @@ void loop()
 		{
 			System.sleep(BTN, FALLING, (((alert_smpl_intvl - secs_less_intrvl_sleep) - sleep_wait) - 5), SLEEP_NETWORK_STANDBY);
 		}
-		//WAKE UP IMU
-		Wire.beginTransmission(0x28);
-		Wire.write(0x3E);
-		Wire.write(0x00);
-		Wire.endTransmission();
-		for (uint32_t ms = millis(); millis() - ms < 250;)
-			;
+		i2cWake();
 		published_norm1_or_alert2 = 0;
 	}
 	//-- END BEDTIME CHECK --
 
 	///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ END GATHER, EVENT CHECK, AND PUBLISH \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
-	for (uint32_t ms = millis(); millis() - ms < 100;)
+	for (uint32_t ms = millis(); millis() - ms < 700;)
 		;
 }
