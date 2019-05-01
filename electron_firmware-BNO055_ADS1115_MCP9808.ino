@@ -373,11 +373,11 @@ void loop()
 			{
 				if (y < 4)
 				{ //THIS IS TO LET THE FIRST FOUR READINGS HAVE TWO DECIMAL PLACES
-					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.2f(%.1f) ", sensorlen[y], sensor_value[y][0], sensor_value[y][6]);
+					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.2f|%.0f>%d ", sensorlen[y], sensor_value[y][0], sensor_value[y][6], sensor_alert_thrshld[y]);
 				}
 				else
 				{
-					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.0f(%.1f) ", sensorlen[y], sensor_value[y][0], sensor_value[y][6]);
+					snprintf(fullpub_temp1, sizeof(fullpub_temp1), "%0*.0f|%.0f>%d ", sensorlen[y], sensor_value[y][0], sensor_value[y][6], sensor_alert_thrshld[y]);
 				}
 				strncat(fullpublish, fullpub_temp1, sizeof(fullpublish) - strlen(fullpublish) - 1); // better to check the boundaries
 			} // BUILT FULLPUBLISH STRING
