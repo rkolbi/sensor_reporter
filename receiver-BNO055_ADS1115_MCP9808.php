@@ -19,12 +19,53 @@ if ((substr($incoming, 0, 1)) == "9")
 	{
 	echo "* * * " . $incoming . " * * *";
 	$fp = fopen('ark/system.csv', 'a');
-	fwrite($fp, $datetime . "," . substr($incoming,4,99) . "\n");
+	fwrite($fp, $datetime . "," . substr($incoming,4,200) . "\n");
 	fclose($fp);
+
+// THIS IS TO WRITE TO ALERT INFORMATION 'ON THE INSTANT' TO THE CSV FILES, THEY CAN'T REALLY BE IN THE NORMAL STRING SINCE THEY BREAK
+// THE TIME FORMAT THAT IS USED A A STANDARD WITHIN THE REPORTING FEATURE. IT GRABS THIS DATA FROM THE SYSTEM STATUS PUBLISH '9'
+
+	if (strpos($incoming, "9 - OOS:") !== false) {		
+		$pieces = explode("'", $incoming);	
+		$odd=array();
+		$even=array();
+		$count=1;
+		foreach($pieces as $val)
+		{
+			if($count%2==1)
+			{ $odd[]=$val;
+			} else 
+			{ $even[]=$val;
+			} $count++;
+		}
+
+		$fp = fopen('ark/volts.csv', 'a'); // WRITE SENSOR DATA TO CSV FILE NAMED lf.csv LOCATED IN THE ark FOLDER
+		fwrite($fp, $datetime . "," . $even[0] . ",". $even[1] . ",". $even[2] . ",". $even[3] . "\n");
+		fclose($fp);
+
+		$fp = fopen('ark/temperature.csv', 'a'); // WRITE SENSOR DATA TO CSV FILE NAMED lf.csv LOCATED IN THE ark FOLDER
+		fwrite($fp, $datetime . "," . ($even[4] / 10) . "\n");
+		fclose($fp);
+
+		$fp = fopen('ark/orientation.csv', 'a'); // WRITE SENSOR DATA TO CSV FILE NAMED lf.csv LOCATED IN THE ark FOLDER
+		fwrite($fp, $datetime . "," . $even[5] . ",". $even[6] . ",". $even[7] . "\n");
+		fclose($fp);
+
+}
+
+// END OF ON THE INSTANT ALERT VALUE PUBLISHING
+
 	die();
 	}
 
 echo "Publish string: \n" . $incoming . "\n\n";
+$timeoffset = substr($incoming, (strpos($incoming, "T")+1));
+$striplen1 = strlen($timeoffset) + 1; // CALCULATE WHERE TO CUT THE EXTRA DATA FROM SENSOR DATA
+$incoming = substr($incoming, 0, ($length - $striplen1)); // CUT OFF EXTRA DATA - JUST LEAVE SENSOR DATA
+echo "Publish string: \n" . $incoming . "\n\n";
+
+
+
 $inlength = strlen($incoming);
 
 //	$rssi = substr($incoming, -5);
@@ -39,6 +80,11 @@ $striplen = strlen($intrvl) + 8; // CALCULATE WHERE TO CUT THE EXTRA DATA FROM S
 $process = substr($incoming, 0, ($length - $striplen)); // CUT OFF EXTRA DATA - JUST LEAVE SENSOR DATA
 $isalert = substr($incoming, 0, 1);
 $number_sensors = substr($incoming, 1, 1);
+
+/////////////////////////////
+$sectodelc = $intrvl - $timeoffset;
+$datetime2 = date('Y/m/d H:i:s', strtotime('-' . $sectodelc . ' seconds', strtotime($datetime)));
+/////////////////////////////
 
 echo "Length: " . $inlength . ", Battery SoC: " . ($involts / 100) . ", Battery Volts: " . ($insoc / 100) . "\n";
 echo "Alert Flag: " . $isalert . ", Number of sensors: " . $number_sensors . ".\n";
