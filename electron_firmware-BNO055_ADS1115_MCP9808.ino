@@ -33,28 +33,28 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ BEGIN USER CONFIGURABLE PARAMETERS \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
 
 // SAMPLE & PUBLISH SETTINGS //
-int norm_smpl_intvl = 60;	    // SAMPLE INTERVAL, HOW MANY SECONDS TO WAIT BETWEEN EACH
+int norm_smpl_intvl = 60;	// SAMPLE INTERVAL, HOW MANY SECONDS TO WAIT BETWEEN EACH
 const int rnds_to_publish = 5;	// WAIT UNTIL x NUMBER OF SAMPLES ARE GATHERED TO BURST PUBLISH
-int do_publish = 1;		        // PERFORM PARTICLE.PUBLISH EVENTS
+int do_publish = 1;		// PERFORM PARTICLE.PUBLISH EVENTS
 
 // SENSOR REPORT CONFIG
 const int no_of_sensors = 8; 	// THE NUMBER OF SENSOR READINGS TO COLLECT PER SAMPLE
-// 				                ▼ THE LENGTH OF EACH SENSOR'S VALUE
+// 				▼ THE LENGTH OF EACH SENSOR'S VALUE
 int sensorlen[no_of_sensors] = {4, 4, 4, 4, 3, 3, 3, 3};
 
 // ALAERT SETTING //
-int alert_smpl_intvl = 10;	     // ALERT SAMPLE INTERVAL, HOW MANY SECONDS TO WAIT BETWEEN EACH
+int alert_smpl_intvl = 10;	 // ALERT SAMPLE INTERVAL, HOW MANY SECONDS TO WAIT BETWEEN EACH
 const int alrt_publish_rnds = 2; // WHILE IN SENSOR ALERT - HOW MANY COMPLETE PUBLISH CYCLES TO LOOP THROUGH
-// 					                       ▼ SET ARRAY FOR SENSOR ALERT
+// 					   ▼ SET ARRAY FOR SENSOR ALERT
 int sensor_alert_thrshld[no_of_sensors] = {999, 999, 999, 999, 2, 15, 15, 15};
 
 // POWER SETTINGS //
-int solar_opt = 0;		        // SOLAR OPTIMIZATION, 0 = SOLAR OPT OFF, 5 = 5V SOLAR PANEL, 6 = 6V SOLAR PANEL
-int enable_wop = 0;		        // ENABLE WAKE-ON-PING
-int sleep = 1;			        // SLEEP MODE ON = 1 / SLEEP MODE OFF = 0
-int sleep_wait = 1;		        // TIME TO WAIT AFTER PUBLISH TO FALL ASLEEP
+int solar_opt = 0;		// SOLAR OPTIMIZATION, 0 = SOLAR OPT OFF, 5 = 5V SOLAR PANEL, 6 = 6V SOLAR PANEL
+int enable_wop = 0;		// ENABLE WAKE-ON-PING
+int sleep = 1;			// SLEEP MODE ON = 1 / SLEEP MODE OFF = 0
+int sleep_wait = 1;		// TIME TO WAIT AFTER PUBLISH TO FALL ASLEEP
 int secs_less_intrvl_sleep = 0; // ADDITIONAL SECONDS TO DELAY FROM SAMPLE INTERVAL FOR SLEEP TIME, 5 SECONDS ARE ALREADY SUBTRACTED
-int app_watchdog = 360000;	    // APPLICATION WATCHDOG TIME TRIGGER IS MS - SLEEP TIME SHOULD NOT BE COUNTED
+int app_watchdog = 360000;	// APPLICATION WATCHDOG TIME TRIGGER IS MS - SLEEP TIME SHOULD NOT BE COUNTED
 
 ///\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/ END USER CONFIGURABLE PARAMETERS \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
 
@@ -65,51 +65,51 @@ int current_smpl_intvl = norm_smpl_intvl;		// SET CURRENT SAMPLE INTERVAL TO NOR
 char fullpublish[500];					// CONTAINS THE STRING TO BE PUBLISHED
 char fullpub_temp1[16];					// TEMPORARY HOLDING STRING USED FOR FULLPUBLISH EVENT
 int alrt_ckng_tmp = 0;					// USED AS A TEMP CONTAINER IN SENSOR ALERT CHECKING
-int w = 0;						        // THE NUMBER OF SAMPLES TO GATHER
-int x = 0;						        // THE NUMBER OF SAMPLES COUNTER
-int xa = 0;						        // THE NUMBER OF SAMPLES COUNTER in ALERT STATE
-int y = 0;						        // THE SAMPLE PER COUNT GATHERED
+int w = 0;						// THE NUMBER OF SAMPLES TO GATHER
+int x = 0;						// THE NUMBER OF SAMPLES COUNTER
+int xa = 0;						// THE NUMBER OF SAMPLES COUNTER in ALERT STATE
+int y = 0;						// THE SAMPLE PER COUNT GATHERED
 int smpls_performed = 0;				// COUNTER FOF ALL SAMPLES PERFORMED
 int sensor_event_chk = 0;				// SENSOR SAMPLE EVENT CHECK
 int sensor_hist_depth = 0;				// SENSOR SAMPLE EVENT CHECK DEPTH
 int alert_cycl_mark = 0;				// CYCLE MARK BASED ON 'smpls_performed' TO CONTINUE ALERT REPORTING
-int t2 = 0;						        // EQUALS TIME(0) + norm_smpl_intvl, USED TO DETERMINE WHEN TO TAKE SAMPLE
+int t2 = 0;						// EQUALS TIME(0) + norm_smpl_intvl, USED TO DETERMINE WHEN TO TAKE SAMPLE
 int alrt_state_chng = 0;				// CHANGE IN ALERT STATE FLAG
-float sensor_value[no_of_sensors][7];	// DIMENSION THE SENSOR VALUE ARRAY
-int vcell;						        // BATTERY INFO
-int vsoc;						        // BATTERY INFO
-int a = 0;						        // GP TIMER USE
-int published_norm1_or_alert2 = 0;		// TYPE OF PUBLISH LAST PERFORMED
-int sla = 0;						    // USED IN CREATION OF PREAMBLE
-int led1 = D7;						    // ONBOARD BLUE LED
-int volt5 = D6;						    // 5V STEP-UP VOLTAGE REGULATOR ON/OFF CONTROL (SAME CONTROL AS LED) 
-int16_t adc0, adc1, adc2, adc3;			// IMU
-float adcx0, adcx1, adcx2, adcx3;		// IMU
-int sleeptime = 0;					    // SLEEP DURATION
+float sensor_value[no_of_sensors][7];			// DIMENSION THE SENSOR VALUE ARRAY
+int vcell;						// BATTERY INFO
+int vsoc;						// BATTERY INFO
+int a = 0;						// GP TIMER USE
+int published_norm1_or_alert2 = 0;			// TYPE OF PUBLISH LAST PERFORMED
+int sla = 0;						// USED IN CREATION OF PREAMBLE
+int led1 = D7;						// ONBOARD BLUE LED
+int volt5 = D6;						// 5V STEP-UP VOLTAGE REGULATOR ON/OFF CONTROL (SAME CONTROL AS LED) 
+int16_t adc0, adc1, adc2, adc3;				// IMU
+float adcx0, adcx1, adcx2, adcx3;			// IMU
+int sleeptime = 0;					// SLEEP DURATION
 // END OF DECLARATIONS AND INITIAL PARAMETERS
 
 void i2cWake()
 {
 	//WAKE UP i2c DEVICES
-	digitalWrite(volt5, HIGH);			 // TURN ON 5 VOLT REGULATOR
-	ads.setMode(MODE_CONTIN);			 // SET ADC SAMPLING MODE AS CONTINUOUS
-	mcp.setPowerMode(MCP9808_CONTINUOUS);// SET TEMP SENSOR MODE AS CONTINUOUS 
-	Wire.beginTransmission(0x28);	     // TURN IMU ON
-	Wire.write(0x3E);				     // TURN IMU ON
-	Wire.write(0x00);				     // TURN IMU ON
-	Wire.endTransmission();				 // TURN IMU ON
+	digitalWrite(volt5, HIGH);			// TURN ON 5 VOLT REGULATOR
+	ads.setMode(MODE_CONTIN);			// SET ADC SAMPLING MODE AS CONTINUOUS
+	mcp.setPowerMode(MCP9808_CONTINUOUS);		// SET TEMP SENSOR MODE AS CONTINUOUS 
+	Wire.beginTransmission(0x28);			// TURN IMU ON
+	Wire.write(0x3E);				// TURN IMU ON
+	Wire.write(0x00);				// TURN IMU ON
+	Wire.endTransmission();				// TURN IMU ON
 }
 
 void i2cSleep()
 {
 	//PUT i2c DEVICES TO SUSPEND
-	ads.setMode(MODE_SINGLE);			 // SET ADC SAMPLING MODE AS CONTINUOUS
-	mcp.setPowerMode(MCP9808_LOW_POWER); // SET TEMP SENSOR MODE AS CONTINUOUS
-	Wire.beginTransmission(0x28);		 // TURN IMU ON
-	Wire.write(0x3E);				     // TURN IMU ON
-	Wire.write(0x02);				     // TURN IMU ON
-	Wire.endTransmission();				 // TURN IMU ON
-	digitalWrite(volt5, LOW);			 // TURN OFF 5 VOLT REGULATOR
+	ads.setMode(MODE_SINGLE);			// SET ADC SAMPLING MODE AS CONTINUOUS
+	mcp.setPowerMode(MCP9808_LOW_POWER);		// SET TEMP SENSOR MODE AS CONTINUOUS
+	Wire.beginTransmission(0x28);			// TURN IMU ON
+	Wire.write(0x3E);				// TURN IMU ON
+	Wire.write(0x02);				// TURN IMU ON
+	Wire.endTransmission();				// TURN IMU ON
+	digitalWrite(volt5, LOW);			// TURN OFF 5 VOLT REGULATOR
 }
 
 void preamble()
@@ -172,9 +172,9 @@ void setup()
 
 	bno.setExtCrystalUse(true);
 	ads.getAddr_ADS1115(ADS1115_DEFAULT_ADDRESS); // (ADDR = GND)
-	ads.setGain(GAIN_TWOTHIRDS);    // 2/3x gain +/- 6.144V  1 bit = 0.1875mV
-	ads.setMode(MODE_CONTIN);	    // ads.setMode(MODE_CONTIN) = Continuous conversion mode - ads.setMode(MODE_SINGLE); Power-down single-shot mode (default)
-	ads.setRate(RATE_128);		    // 128SPS (default) 8,16,32,64,128,250,475,860
+	ads.setGain(GAIN_TWOTHIRDS);	// 2/3x gain +/- 6.144V  1 bit = 0.1875mV
+	ads.setMode(MODE_CONTIN);	// ads.setMode(MODE_CONTIN) = Continuous conversion mode - ads.setMode(MODE_SINGLE); Power-down single-shot mode (default)
+	ads.setRate(RATE_128);		// 128SPS (default) 8,16,32,64,128,250,475,860
 	ads.setOSMode(OSMODE_SINGLE);	// Set to start a single-conversion
 	ads.begin();
 	mcp.setResolution(MCP9808_SLOWEST);
